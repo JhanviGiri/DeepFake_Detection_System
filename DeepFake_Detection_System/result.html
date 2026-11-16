@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Detection Result — AI Image Detector</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    nav {
+      width: 100%;
+      background: #1e293b;
+      border-bottom: 1px solid #334155;
+      padding: 14px 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    nav a        { text-decoration: none; color: inherit; }
+    nav .logo    { font-size: 1.4rem; font-weight: 700; color: #7c3aed; }
+    nav .sub     { font-size: 0.85rem; color: #94a3b8; }
+
+    main { width: min(720px, 95%); margin-top: 48px; margin-bottom: 48px; }
+
+    /* ── Result hero ── */
+    .result-hero {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .verdict-badge {
+      display: inline-block;
+      padding: 10px 28px;
+      border-radius: 999px;
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      margin-bottom: 14px;
+    }
+    .confidence-big {
+      font-size: 3.5rem;
+      font-weight: 900;
+      line-height: 1;
+    }
+    .confidence-label {
+      font-size: 0.85rem;
+      color: #94a3b8;
+      margin-top: 4px;
+    }
+
+    /* ── Cards ── */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    @media (max-width: 560px) { .two-col { grid-template-columns: 1fr; } }
+
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 14px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    .card:last-child { margin-bottom: 0; }
+    .card h3 {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #64748b;
+      margin-bottom: 14px;
+    }
+
+    /* ── Image card ── */
+    .img-card img {
+      width: 100%;
+      border-radius: 8px;
+      object-fit: cover;
+      max-height: 280px;
+    }
+
+    /* ── Description ── */
+    .desc-text { font-size: 0.92rem; line-height: 1.65; color: #cbd5e1; }
+    .desc-icon { font-size: 2.2rem; margin-bottom: 10px; }
+
+    /* ── Probability bars (CSS animated) ── */
+    .prob-list { display: flex; flex-direction: column; gap: 14px; }
+    .prob-row  { display: flex; flex-direction: column; gap: 4px; }
+    .prob-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.82rem;
+    }
+    .prob-name  { font-weight: 600; }
+    .prob-value { color: #94a3b8; }
+    .bar-bg {
+      background: #0f172a;
+      border-radius: 999px;
+      height: 8px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      transition: width 0.8s cubic-bezier(.25,.46,.45,.94);
+    }
+
+    /* ── Graph image ── */
+    .graph-img {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #334155;
+    }
+
+    /* ── Confusion matrix image ── */
+    .cm-img {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      background: #fff;   /* white bg to preserve matplotlib styling */
+    }
+
+    /* ── Section divider label ── */
+    .section-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #475569;
+      margin: 28px 0 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-label::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: #334155;
+    }
+
+    /* ── Back button ── */
+    .btn-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 28px;
+      padding: 12px 28px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #e2e8f0;
+      border-radius: 10px;
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    .btn-back:hover { background: #334155; }
+
+    footer { margin-top: auto; padding: 28px; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="/">
+    <span class="logo">🔍 DeepFake Detector</span>
+  </a>
+  <span class="sub">· Detection Result</span>
+</nav>
+
+<main>
+
+  <!-- ── Verdict hero ─────────────────────────────── -->
+  <div class="result-hero">
+    <div class="verdict-badge"
+         style="background: {{ info.color }}22; color: {{ info.color }}; border: 2px solid {{ info.color }};">
+      {{ info.icon }} {{ result.predicted_class | replace("_", " ") }}
+    </div>
+    <div class="confidence-big" style="color: {{ info.color }};">
+      {{ result.confidence }}%
+    </div>
+    <div class="confidence-label">Confidence Score</div>
+  </div>
+
+  <!-- ── Image + Description ──────────────────────── -->
+  <div class="two-col">
+    <div class="card img-card">
+      <h3>Uploaded Image</h3>
+      <img src="{{ image_url }}" alt="Analysed image" />
+    </div>
+
+    <div class="card">
+      <h3>Interpretation</h3>
+      <div class="desc-icon">{{ info.icon }}</div>
+      <p class="desc-text">{{ info.description }}</p>
+    </div>
+  </div>
+
+  <!-- ── Probability Breakdown (CSS bars) ─────────── -->
+  <div class="section-label">Probability Breakdown</div>
+
+  <div class="card">
+    <h3>Class Probability (Animated Bars)</h3>
+    <div class="prob-list">
+      {% for item in result.all_probabilities %}
+        {% if item.class == "REAL" %}
+          {% set bar_color = "#22c55e" %}
+        {% elif item.class == "AI_GENERATED" %}
+          {% set bar_color = "#ef4444" %}
+        {% else %}
+          {% set bar_color = "#f59e0b" %}
+        {% endif %}
+
+        <div class="prob-row">
+          <div class="prob-header">
+            <span class="prob-name">
+              {% if item.class == result.predicted_class %}⭐ {% endif %}
+              {{ item.class | replace("_", " ") }}
+            </span>
+            <span class="prob-value">{{ item.prob }}%</span>
+          </div>
+          <div class="bar-bg">
+            <div class="bar-fill"
+                 style="width: {{ item.prob }}%; background: {{ bar_color }};"
+                 data-width="{{ item.prob }}"></div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- ── Probability Graph (matplotlib) ───────────── -->
+  <div class="section-label">Probability Graph</div>
+
+  <div class="card">
+    <h3>Bar Chart — Generated by Matplotlib</h3>
+    <img class="graph-img" src="{{ graph_url }}" alt="Probability bar graph" />
+  </div>
+
+  <!-- ── Confusion Matrix ─────────────────────────── -->
+  {% if cm_url %}
+  <div class="section-label">Model Performance</div>
+
+  <div class="card">
+    <h3>Confusion Matrix — Test Dataset (Generated During Training)</h3>
+    <img class="cm-img" src="{{ cm_url }}" alt="Confusion matrix" />
+  </div>
+  {% endif %}
+
+  <a href="/" class="btn-back">← Analyse Another Image</a>
+
+</main>
+
+<footer>DeepFake Detector · EfficientNetB0 · TensorFlow · Flask</footer>
+
+<script>
+  /* Animate bars from 0 → actual value on load */
+  document.querySelectorAll(".bar-fill").forEach(bar => {
+    const target = bar.dataset.width;
+    bar.style.width = "0%";
+    setTimeout(() => { bar.style.width = target + "%"; }, 80);
+  });
+</script>
+
+</body>
+</html>

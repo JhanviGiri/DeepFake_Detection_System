@@ -1,0 +1,27 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# AI Image Detector — Python Dependencies
+# Install: pip install -r requirements.txt
+# GPU:     replace tensorflow with tensorflow[and-cuda]  (TF ≥ 2.13)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Deep Learning
+tensorflow>=2.13.0,<3.0.0
+# tensorflow[and-cuda]          # Uncomment for NVIDIA GPU
+
+# Image I/O
+Pillow>=9.5.0
+
+# Scientific
+numpy>=1.23.0,<2.0.0
+scikit-learn>=1.2.0
+
+# Visualisation
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Web App
+Flask>=2.3.0
+Werkzeug>=2.3.0
+
+# Production WSGI (optional)
+# gunicorn>=21.0.0

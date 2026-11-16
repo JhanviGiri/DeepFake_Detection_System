@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DeepSight — AI Image Forensics</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet" />
+  <style>
+    /* ─── DESIGN TOKENS ─────────────────────────────────────── */
+    :root {
+      --bg:       #070b14;
+      --surface:  #0e1524;
+      --border:   #1e2d47;
+      --text:     #e8edf5;
+      --muted:    #5a7090;
+      --accent:   #38bdf8;
+      --real:     #22c55e;
+      --gen:      #f97316;
+      --edit:     #a855f7;
+      --font-head: 'Syne', sans-serif;
+      --font-mono: 'Space Mono', monospace;
+      --radius:   14px;
+      --glow:     0 0 30px rgba(56, 189, 248, 0.15);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-head);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ─── GRID BACKGROUND ───────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(56,189,248,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(56,189,248,0.03) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ─── LAYOUT ────────────────────────────────────────────── */
+    .page {
+      position: relative;
+      z-index: 1;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 60px 24px 100px;
+    }
+
+    /* ─── HEADER ────────────────────────────────────────────── */
+    .header {
+      text-align: center;
+      margin-bottom: 56px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(56,189,248,0.08);
+      border: 1px solid rgba(56,189,248,0.25);
+      border-radius: 100px;
+      padding: 6px 14px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      margin-bottom: 20px;
+    }
+    .badge::before { content: '●'; font-size: 8px; }
+    h1 {
+      font-size: clamp(36px, 7vw, 68px);
+      font-weight: 800;
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+      background: linear-gradient(135deg, #e8edf5 0%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 16px;
+    }
+    .subtitle {
+      font-size: 16px;
+      color: var(--muted);
+      font-weight: 400;
+      letter-spacing: 0.01em;
+    }
+
+    /* ─── PILLS ─────────────────────────────────────────────── */
+    .pills {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    .pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border-radius: 100px;
+      font-size: 13px;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      border: 1px solid;
+    }
+    .pill-real   { color: var(--real);  border-color: rgba(34,197,94,0.3);  background: rgba(34,197,94,0.07);  }
+    .pill-gen    { color: var(--gen);   border-color: rgba(249,115,22,0.3); background: rgba(249,115,22,0.07); }
+    .pill-edit   { color: var(--edit);  border-color: rgba(168,85,247,0.3); background: rgba(168,85,247,0.07); }
+
+    /* ─── UPLOAD ZONE ───────────────────────────────────────── */
+    .upload-card {
+      background: var(--surface);
+      border: 2px dashed var(--border);
+      border-radius: 20px;
+      padding: 56px 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .upload-card::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at 50% 0%, rgba(56,189,248,0.06) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .upload-card:hover,
+    .upload-card.drag-over {
+      border-color: var(--accent);
+      background: rgba(56,189,248,0.04);
+      box-shadow: var(--glow);
+    }
+    .upload-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      display: block;
+    }
+    .upload-title {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .upload-hint {
+      font-size: 14px;
+      color: var(--muted);
+      font-family: var(--font-mono);
+    }
+    .upload-hint span {
+      color: var(--accent);
+      text-decoration: underline;
+      cursor: pointer;
+    }
+
+    /* ─── PREVIEW STRIP ─────────────────────────────────────── */
+    #preview-strip {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
+    .preview-thumb {
+      position: relative;
+      width: 80px;
+      height: 80px;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .preview-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .preview-thumb .remove-btn {
+      position: absolute; top: 3px; right: 3px;
+      background: rgba(0,0,0,0.7); border: none;
+      color: white; border-radius: 50%;
+      width: 20px; height: 20px;
+      cursor: pointer; font-size: 12px;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s;
+    }
+    .preview-thumb .remove-btn:hover { background: rgba(239,68,68,0.8); }
+
+    /* ─── ACTIONS ───────────────────────────────────────────── */
+    .actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 13px 28px;
+      border-radius: 100px;
+      font-family: var(--font-head);
+      font-size: 15px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary {
+      background: var(--accent);
+      color: #07111f;
+      box-shadow: 0 4px 20px rgba(56,189,248,0.3);
+    }
+    .btn-primary:hover { box-shadow: 0 4px 32px rgba(56,189,248,0.5); }
+    .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ─── SPINNER ───────────────────────────────────────────── */
+    #spinner {
+      display: none;
+      align-items: center;
+      gap: 14px;
+      margin-top: 28px;
+      padding: 20px 24px;
+      background: rgba(56,189,248,0.05);
+      border: 1px solid rgba(56,189,248,0.2);
+      border-radius: var(--radius);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--accent);
+    }
+    #spinner.active { display: flex; }
+    .spinner-ring {
+      width: 24px; height: 24px;
+      border: 2px solid rgba(56,189,248,0.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── RESULTS GRID ──────────────────────────────────────── */
+    #results { margin-top: 48px; }
+    #results-title {
+      font-size: 22px;
+      font-weight: 800;
+      margin-bottom: 24px;
+      letter-spacing: -0.02em;
+    }
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 18px;
+    }
+
+    /* ─── RESULT CARD ───────────────────────────────────────── */
+    .result-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      overflow: hidden;
+      animation: slideUp 0.4s cubic-bezier(0.22,1,0.36,1) both;
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .result-card .card-img {
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: cover;
+      display: block;
+    }
+    .card-body { padding: 18px; }
+    .card-filename {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .verdict {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .verdict-icon { font-size: 22px; }
+    .verdict-label {
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+    }
+    .verdict-conf {
+      margin-left: auto;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .card-desc {
+      font-size: 12.5px;
+      color: var(--muted);
+      line-height: 1.55;
+      margin-bottom: 16px;
+    }
+
+    /* ─── PROB BARS ─────────────────────────────────────────── */
+    .prob-bars { display: flex; flex-direction: column; gap: 7px; }
+    .prob-row { display: flex; align-items: center; gap: 8px; }
+    .prob-name {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--muted);
+      width: 100px;
+      flex-shrink: 0;
+    }
+    .prob-track {
+      flex: 1;
+      height: 6px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 100px;
+      overflow: hidden;
+    }
+    .prob-fill {
+      height: 100%;
+      border-radius: 100px;
+      transition: width 0.8s cubic-bezier(0.22,1,0.36,1);
+    }
+    .prob-pct {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--muted);
+      width: 42px;
+      text-align: right;
+    }
+
+    /* ─── ERROR CARD ────────────────────────────────────────── */
+    .error-card {
+      background: rgba(239,68,68,0.07);
+      border: 1px solid rgba(239,68,68,0.25);
+      border-radius: var(--radius);
+      padding: 16px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: #f87171;
+    }
+
+    /* ─── MODEL WARNING ─────────────────────────────────────── */
+    .model-warning {
+      background: rgba(249,115,22,0.07);
+      border: 1px solid rgba(249,115,22,0.3);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      margin-bottom: 32px;
+      font-size: 14px;
+      color: #fdba74;
+      font-family: var(--font-mono);
+      line-height: 1.6;
+    }
+    .model-warning strong { color: var(--gen); display: block; margin-bottom: 6px; font-size: 15px; }
+
+    /* ─── FOOTER ────────────────────────────────────────────── */
+    footer {
+      text-align: center;
+      margin-top: 80px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+
+    <!-- Header -->
+    <div class="header">
+      <div class="badge">AI FORENSICS ENGINE v2.0</div>
+      <h1>DeepSight</h1>
+      <p class="subtitle">Classify images as Real, AI-Generated, or AI-Edited<br>using EfficientNetB5 + TTA + Patch Analysis</p>
+      <div class="pills">
+        <span class="pill pill-real">📷 REAL</span>
+        <span class="pill pill-gen">🤖 AI GENERATED</span>
+        <span class="pill pill-edit">✏️ AI EDITED</span>
+      </div>
+    </div>
+
+    <!-- Model warning -->
+    {% if not model_ready %}
+    <div class="model-warning">
+      <strong>⚠️ Model Not Found</strong>
+      No trained model detected at <code>best_model.keras</code>.<br>
+      Run <code>python train.py</code> first, then restart this app.
+    </div>
+    {% endif %}
+
+    <!-- Upload zone -->
+    <div class="upload-card" id="drop-zone">
+      <span class="upload-icon">🔍</span>
+      <div class="upload-title">Drop images here to analyse</div>
+      <div class="upload-hint">or <span id="browse-link">browse files</span> — PNG, JPG, WEBP · Max 5 images · 16 MB each</div>
+      <input type="file" id="file-input" accept="image/png,image/jpeg,image/webp" multiple style="display:none" />
+    </div>
+
+    <!-- Preview strip -->
+    <div id="preview-strip"></div>
+
+    <!-- Actions -->
+    <div class="actions">
+      <button class="btn btn-primary" id="analyse-btn" disabled>
+        <span>🔬</span> Analyse Images
+      </button>
+      <button class="btn btn-ghost" id="clear-btn">
+        Clear
+      </button>
+    </div>
+
+    <!-- Spinner -->
+    <div id="spinner">
+      <div class="spinner-ring"></div>
+      <span id="spinner-text">Running EfficientNetB5 inference with TTA…</span>
+    </div>
+
+    <!-- Results -->
+    <div id="results" style="display:none">
+      <div id="results-title">Analysis Results</div>
+      <div class="results-grid" id="results-grid"></div>
+    </div>
+
+    <footer>DEEPSIGHT — AI IMAGE FORENSICS · EfficientNetB5 + TTA + PATCH ANALYSIS</footer>
+  </div>
+
+  <script>
+    const MAX_FILES = 5;
+    let selectedFiles = [];
+
+    const dropZone    = document.getElementById('drop-zone');
+    const fileInput   = document.getElementById('file-input');
+    const browseLink  = document.getElementById('browse-link');
+    const previewStrip = document.getElementById('preview-strip');
+    const analyseBtn  = document.getElementById('analyse-btn');
+    const clearBtn    = document.getElementById('clear-btn');
+    const spinner     = document.getElementById('spinner');
+    const spinnerText = document.getElementById('spinner-text');
+    const resultsDiv  = document.getElementById('results');
+    const resultsGrid = document.getElementById('results-grid');
+
+    const CLASS_COLORS = { REAL: '#22c55e', AI_GENERATED: '#f97316', AI_EDITED: '#a855f7' };
+
+    // ── Drag & Drop ──────────────────────────────────────────
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', ()  => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      addFiles([...e.dataTransfer.files]);
+    });
+    dropZone.addEventListener('click', e => {
+      if (e.target === browseLink || e.target === dropZone || e.target.closest('.upload-card')) {
+        fileInput.click();
+      }
+    });
+    browseLink.addEventListener('click', e => { e.stopPropagation(); fileInput.click(); });
+    fileInput.addEventListener('change', () => addFiles([...fileInput.files]));
+
+    function addFiles(newFiles) {
+      const allowed = ['image/png','image/jpeg','image/webp'];
+      newFiles.forEach(f => {
+        if (!allowed.includes(f.type)) return;
+        if (selectedFiles.length >= MAX_FILES) return;
+        if (selectedFiles.find(x => x.name === f.name && x.size === f.size)) return;
+        selectedFiles.push(f);
+      });
+      renderPreviews();
+      fileInput.value = '';
+    }
+
+    function renderPreviews() {
+      previewStrip.innerHTML = '';
+      selectedFiles.forEach((f, i) => {
+        const url = URL.createObjectURL(f);
+        const thumb = document.createElement('div');
+        thumb.className = 'preview-thumb';
+        thumb.innerHTML = `
+          <img src="${url}" alt="${f.name}" />
+          <button class="remove-btn" data-idx="${i}">✕</button>`;
+        previewStrip.appendChild(thumb);
+      });
+      previewStrip.querySelectorAll('.remove-btn').forEach(btn => {
+        btn.addEventListener('click', e => {
+          e.stopPropagation();
+          selectedFiles.splice(+btn.dataset.idx, 1);
+          renderPreviews();
+        });
+      });
+      analyseBtn.disabled = selectedFiles.length === 0;
+    }
+
+    // ── Clear ─────────────────────────────────────────────────
+    clearBtn.addEventListener('click', () => {
+      selectedFiles = [];
+      renderPreviews();
+      resultsDiv.style.display = 'none';
+      resultsGrid.innerHTML    = '';
+    });
+
+    // ── Analyse ───────────────────────────────────────────────
+    analyseBtn.addEventListener('click', async () => {
+      if (!selectedFiles.length) return;
+
+      analyseBtn.disabled = true;
+      resultsDiv.style.display = 'none';
+      resultsGrid.innerHTML    = '';
+      spinner.classList.add('active');
+
+      const messages = [
+        'Running EfficientNetB5 inference with TTA…',
+        'Applying patch-based analysis…',
+        'Averaging ensemble predictions…',
+        'Generating confidence scores…',
+      ];
+      let mi = 0;
+      const msgTimer = setInterval(() => {
+        mi = (mi + 1) % messages.length;
+        spinnerText.textContent = messages[mi];
+      }, 1800);
+
+      const fd = new FormData();
+      selectedFiles.forEach(f => fd.append('images', f));
+
+      try {
+        const res  = await fetch('/predict', { method: 'POST', body: fd });
+        const data = await res.json();
+
+        clearInterval(msgTimer);
+        spinner.classList.remove('active');
+
+        if (data.error) {
+          resultsGrid.innerHTML = `<div class="error-card">❌ ${data.error}</div>`;
+        } else {
+          data.results.forEach((r, i) => {
+            const card = buildCard(r, i);
+            resultsGrid.appendChild(card);
+          });
+        }
+        resultsDiv.style.display = 'block';
+        resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } catch (err) {
+        clearInterval(msgTimer);
+        spinner.classList.remove('active');
+        resultsGrid.innerHTML = `<div class="error-card">❌ Network error: ${err.message}</div>`;
+        resultsDiv.style.display = 'block';
+      }
+
+      analyseBtn.disabled = false;
+    });
+
+    // ── Build result card ─────────────────────────────────────
+    function buildCard(r, delay) {
+      const card = document.createElement('div');
+      card.className = 'result-card';
+      card.style.animationDelay = `${delay * 80}ms`;
+
+      if (r.error) {
+        card.innerHTML = `
+          <div class="card-body">
+            <div class="card-filename">${r.filename}</div>
+            <div class="error-card">❌ ${r.error}</div>
+          </div>`;
+        return card;
+      }
+
+      const color = CLASS_COLORS[r.predicted_class] || '#38bdf8';
+      const probs = r.probabilities || {};
+      const probRows = Object.entries(probs).map(([name, pct]) => `
+        <div class="prob-row">
+          <span class="prob-name">${name.replace('_',' ')}</span>
+          <div class="prob-track">
+            <div class="prob-fill" style="width:0%; background:${CLASS_COLORS[name] || '#38bdf8'}"
+                 data-pct="${pct}"></div>
+          </div>
+          <span class="prob-pct">${pct.toFixed(1)}%</span>
+        </div>`).join('');
+
+      card.innerHTML = `
+        <img class="card-img" src="${r.thumbnail}" alt="${r.filename}" />
+        <div class="card-body">
+          <div class="card-filename">${r.filename}</div>
+          <div class="verdict">
+            <span class="verdict-icon">${r.meta.icon}</span>
+            <span class="verdict-label" style="color:${color}">${r.meta.label}</span>
+            <span class="verdict-conf" style="color:${color}">${r.confidence}%</span>
+          </div>
+          <p class="card-desc">${r.meta.description}</p>
+          <div class="prob-bars">${probRows}</div>
+        </div>`;
+
+      // Animate bars after render
+      requestAnimationFrame(() => {
+        card.querySelectorAll('.prob-fill').forEach(el => {
+          setTimeout(() => { el.style.width = el.dataset.pct + '%'; }, 200);
+        });
+      });
+
+      return card;
+    }
+  </script>
+</body>
+</html>
